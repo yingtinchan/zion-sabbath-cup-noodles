@@ -2,47 +2,147 @@
 <html lang="zh-HK">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>杯麵預訂與統計管理系統</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     html, body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: #f5f6f8;
+      margin: 0;
+      min-height: 100%;
+      background: #f5f6f8;
+      color: #202124;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "PingFang TC", "Microsoft JhengHei", sans-serif;
     }
-
-    /* 裁切容器：向上推移 42px，將 Google Apps Script 頂部橫幅推移至螢幕可視區外 */
-    #appWrapper {
-      position: absolute;
-      top: -42px;
-      left: 0;
-      width: 100%;
-      height: calc(100% + 42px);
-      overflow: hidden;
+    body {
+      display: grid;
+      place-items: center;
+      padding: 24px;
     }
-
-    iframe {
-      border: none;
-      width: 100%;
-      height: 100%;
-      display: block;
+    main {
+      width: min(100%, 520px);
+      padding: 32px 24px;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 8px 30px rgba(32, 33, 36, 0.12);
+      text-align: center;
     }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p { margin: 0 0 24px; color: #5f6368; }
+    #loginButton {
+      display: flex;
+      justify-content: center;
+      min-height: 40px;
+    }
+    #status {
+      margin-top: 20px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      text-align: left;
+      font-size: 14px;
+      color: #5f6368;
+    }
+    #apiData {
+      margin-top: 16px;
+      max-height: 320px;
+      overflow: auto;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8f9fa;
+      text-align: left;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    [hidden] { display: none; }
   </style>
 </head>
 <body>
-  <!-- 嵌入你的 Google Apps Script Web App 網址 -->
-  <div id="appWrapper">
-    <iframe
-      src="https://script.google.com/macros/s/AKfycbxNBrntpcLBBOQuuaWXgaglh6xdNO_48CBbTp5ibNNGKimesdYjG2d4MAct1SYE8ktn/exec"
-      allow="camera; microphone; clipboard-write; autoplay"
-      allowfullscreen>
-    </iframe>
-  </div>
+  <main>
+    <h1>杯麵預訂與統計管理系統</h1>
+    <p>請使用 Google 帳號登入以存取系統</p>
+    <div id="loginButton"></div>
+    <div id="status" role="status">正在載入 Google 登入元件…</div>
+    <pre id="apiData" hidden></pre>
+  </main>
+
+  <script>
+    const GOOGLE_CLIENT_ID =
+      "709009270844-mdhc9tuanitn13fsbtrebrdirvhvn1uq.apps.googleusercontent.com";
+    const API_URL =
+      "https://script.google.com/macros/s/AKfycbfzSlf36NyodJsGMJ6XOQN-32DEsAVuovTZCafzC4d4Cb9kM1R4a_p0AG4ZQ3kHKxPIq/exec";
+    const statusElement = document.getElementById("status");
+    const apiDataElement = document.getElementById("apiData");
+
+    let idToken = "";
+
+    function setStatus(message) {
+      statusElement.textContent = message;
+    }
+
+    function parseJwt(token) {
+      const payload = token.split(".")[1];
+      if (!payload) throw new Error("Google 登入回應格式無效。");
+      const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(decodeURIComponent(
+        atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="))
+          .split("")
+          .map((char) => "%" + ("00" + char.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      ));
+    }
+
+    async function apiRequest(path = "", options = {}) {
+      if (!idToken) throw new Error("請先完成 Google 登入。");
+      const response = await fetch(API_URL + path, {
+        ...options,
+        headers: {
+          Accept: "application/json",
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...(options.headers || {}),
+          Authorization: `Bearer ${idToken}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`API 請求失敗（HTTP ${response.status}）。`);
+      }
+      return response.json();
+    }
+
+    window.apiRequest = apiRequest;
+
+    async function handleCredentialResponse(response) {
+      try {
+        idToken = response.credential;
+        const profile = parseJwt(idToken);
+        setStatus(`已登入：${profile.email || "Google 帳號"}\n正在連線至後端…`);
+        const data = await apiRequest();
+        apiDataElement.textContent = JSON.stringify(data, null, 2);
+        apiDataElement.hidden = false;
+        setStatus(`已登入：${profile.email || "Google 帳號"}\n後端 API 連線成功。`);
+      } catch (error) {
+        idToken = "";
+        apiDataElement.hidden = true;
+        setStatus(`登入或 API 連線失敗：${error.message}`);
+      }
+    }
+
+    function initializeGoogleLogin() {
+      if (!window.google?.accounts?.id) {
+        setStatus("Google 登入元件載入失敗，請重新整理頁面。");
+        return;
+      }
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse
+      });
+      google.accounts.id.renderButton(
+        document.getElementById("loginButton"),
+        { type: "standard", theme: "outline", size: "large", text: "signin_with" }
+      );
+      setStatus("請點擊 Google 登入按鈕。");
+    }
+
+    window.addEventListener("load", initializeGoogleLogin);
+  </script>
 </body>
 </html>
