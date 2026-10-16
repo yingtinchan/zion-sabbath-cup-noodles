@@ -93,15 +93,37 @@
 
     async function apiRequest(path = "", options = {}) {
       if (!idToken) throw new Error("請先完成 Google 登入。");
-      const response = await fetch(API_URL + path, {
-        ...options,
-        headers: {
-          Accept: "application/json",
-          ...(options.body ? { "Content-Type": "application/json" } : {}),
-          ...(options.headers || {}),
-          Authorization: `Bearer ${idToken}`
+
+      const url = new URL(API_URL + path);
+      let fetchOptions = { ...options };
+      const method = (options.method || "GET").toUpperCase();
+
+      if (method === "GET") {
+        url.searchParams.set("id_token", idToken);
+      } else {
+        let payload = {};
+        if (typeof options.body === "string") {
+          try {
+            payload = JSON.parse(options.body);
+          } catch {
+            payload = { data: options.body };
+          }
+        } else if (options.body && typeof options.body === "object") {
+          payload = { ...options.body };
         }
-      });
+
+        payload.id_token = idToken;
+        fetchOptions = {
+          ...options,
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify(payload)
+        };
+      }
+
+      const response = await fetch(url.toString(), fetchOptions);
       if (!response.ok) {
         throw new Error(`API 請求失敗（HTTP ${response.status}）。`);
       }
