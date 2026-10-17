@@ -4,121 +4,418 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>杯麵預訂與統計管理系統</title>
+  <!-- Google 官方 Identity Services SDK -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- 條碼掃描庫 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
   <style>
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      background: #f5f6f8;
-      color: #202124;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-        "PingFang TC", "Microsoft JhengHei", sans-serif;
-    }
-    body {
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-    main {
-      width: min(100%, 520px);
-      padding: 32px 24px;
-      border-radius: 16px;
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif; }
+    body { background: #f5f6f8; padding-bottom: 75px; color: #333; }
+
+    /* 頂部身分狀態列 */
+    .user-status {
       background: #fff;
-      box-shadow: 0 8px 30px rgba(32, 33, 36, 0.12);
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #444;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+    }
+    .auth-btn {
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: bold;
+      border-radius: 14px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      background: #f0f0f0;
+      color: #555;
+      transition: all 0.2s;
+    }
+    .auth-btn:hover { background: #e0e0e0; color: #d32f2f; }
+
+    .nav-tabs { display: flex; background: #fff; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.06); }
+    .tab-btn { flex: 1; padding: 14px 6px; text-align: center; font-size: 15px; font-weight: 600; color: #666; border-bottom: 3px solid transparent; cursor: pointer; user-select: none; }
+    .tab-btn.active { color: #d32f2f; border-bottom-color: #d32f2f; }
+
+    .control-bar { background: #fff; padding: 10px 14px; margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; font-size: 13px; border-bottom: 1px solid #eee; }
+    .control-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .control-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .select-group { display: flex; gap: 6px; align-items: center; }
+    .fixed-badge { font-weight: bold; color: #1565c0; background: #e3f2fd; padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+    select { padding: 5px 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 13px; background: #fff; }
+
+    .tab-content { display: none; padding: 10px 12px; }
+    .tab-content.active { display: block; }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      min-height: 520px;
+      align-content: start;
+    }
+    @media (min-width: 520px) {
+      .grid-container {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      }
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+      text-align: center;
+      height: 240px;
+      position: relative;
+    }
+    .card .img-box {
+      width: 90px;
+      height: 90px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+    .card .img-box img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .card .title {
+      font-size: 12px;
+      font-weight: 500;
+      height: 34px;
+      line-height: 17px;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      color: #222;
+      margin-bottom: 6px;
+    }
+    .card .stock-tag {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+    .stock-tag.in-stock { color: #2e7d32; background: #e8f5e9; }
+    .stock-tag.preorder { color: #e65100; background: #fff3e0; }
+
+    .stepper { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: auto; width: 100%; }
+    .stepper button { width: 28px; height: 28px; border-radius: 4px; border: 1px solid #ddd; background: #fafafa; font-size: 16px; font-weight: bold; cursor: pointer; }
+    .stepper .val { font-size: 14px; min-width: 24px; font-weight: bold; }
+
+    .pagination-bar { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 16px 0 10px 0; }
+    .pagination-bar button { padding: 6px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fff; font-size: 13px; font-weight: 500; cursor: pointer; }
+    .pagination-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .page-info { font-size: 13px; font-weight: 600; color: #555; }
+
+    .fixed-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 56px; background: #fff; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; z-index: 200; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+    .footer-total { font-size: 14px; font-weight: bold; color: #111; }
+    .btn-submit { background: #d32f2f; color: #fff; border: none; padding: 10px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; }
+
+    .drawer { position: fixed; bottom: 56px; left: 0; right: 0; background: #fff; max-height: 60vh; overflow-y: auto; border-radius: 14px 14px 0 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.15); display: none; z-index: 199; padding: 16px; }
+    .drawer-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+
+    .report-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; border-radius: 6px; overflow: hidden; }
+    .report-table th, .report-table td { padding: 8px 6px; border: 1px solid #eee; text-align: center; }
+    .report-table th { background: #fafafa; font-weight: 600; color: #555; }
+    .report-table td:first-child { text-align: left; }
+
+    .edit-btn { display: inline-block; margin-left: 4px; cursor: pointer; font-size: 12px; color: #1976d2; user-select: none; }
+    .edit-btn:hover { color: #d32f2f; }
+
+    #scannerWrapper {
+      display: none;
+      background: #fff;
+      padding: 12px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
       text-align: center;
     }
-    h1 { margin: 0 0 8px; font-size: 24px; }
-    p { margin: 0 0 24px; color: #5f6368; }
-    #loginButton {
-      display: flex;
-      justify-content: center;
-      min-height: 40px;
-    }
-    #status {
-      margin-top: 20px;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      text-align: left;
-      font-size: 14px;
-      color: #5f6368;
-    }
-    #apiData {
-      margin-top: 16px;
-      max-height: 320px;
-      overflow: auto;
+    #readerVideo { width: 100%; max-width: 320px; border-radius: 8px; display: none; margin: 0 auto; }
+    #reader { width: 100%; max-width: 340px; margin: 0 auto; }
+
+    .barcode-input-panel {
+      background: #fff;
       padding: 12px;
       border-radius: 8px;
-      background: #f8f9fa;
-      text-align: left;
-      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      margin-bottom: 15px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
-    [hidden] { display: none; }
+    .barcode-input-panel input {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+    }
+    .barcode-input-panel button {
+      padding: 9px 16px;
+      background: #1565c0;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: none; align-items: center; justify-content: center; }
+    .modal-box { background: #fff; border-radius: 12px; width: 85%; max-width: 340px; padding: 20px; text-align: center; }
+    .modal-box img { width: 110px; height: 110px; object-fit: contain; margin-bottom: 10px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 15px; }
+    .modal-actions button { flex: 1; padding: 10px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+    .btn-confirm { background: #d32f2f; color: #fff; }
+    .btn-cancel { background: #eee; color: #333; }
   </style>
 </head>
 <body>
-  <main>
-    <h1>杯麵預訂與統計管理系統</h1>
-    <p>請使用 Google 帳號登入以存取系統</p>
-    <div id="loginButton"></div>
-    <div id="status" role="status">正在載入 Google 登入元件…</div>
-    <pre id="apiData" hidden></pre>
-  </main>
+
+  <!-- 頂部身分狀態列與 GIS 按鈕 -->
+  <div class="user-status" id="userStatusBar">
+    <span id="userStatusText">載入中…</span>
+    <div id="gisButtonBox"></div>
+    <button id="btnLogout" class="auth-btn" onclick="logoutUser()" style="display:none;">登出</button>
+  </div>
+
+  <!-- 頂部導覽 Tab -->
+  <div class="nav-tabs" id="navTabs">
+    <div class="tab-btn active" data-tab="tab1" id="tab1Btn">報名</div>
+    <div class="tab-btn" data-tab="tab2" id="tab2Btn">報名數目</div>
+    <div class="tab-btn" data-tab="tab3" id="tab3Btn">統計數目</div>
+  </div>
+
+  <!-- 控制列 -->
+  <div class="control-bar">
+    <div class="control-left">
+      <div class="select-group">
+        <label>月份：</label>
+        <select id="sheetSelect" onchange="onSheetOrWeekChange()" style="display:none;"></select>
+        <span id="sheetText" class="fixed-badge">載入中...</span>
+      </div>
+      <div class="select-group">
+        <label>週次：</label>
+        <select id="weekSelect" onchange="onSheetOrWeekChange()" style="display:none;">
+          <option value="1">第 1 週</option>
+          <option value="2">第 2 週</option>
+          <option value="3">第 3 週</option>
+          <option value="4">第 4 週</option>
+          <option value="5">第 5 週</option>
+          <option value="6">第 6 週</option>
+        </select>
+        <span id="weekText" class="fixed-badge">載入中...</span>
+      </div>
+    </div>
+
+    <div class="control-right" id="pageSizeContainer">
+      <label>每頁：</label>
+      <select id="pageSizeSelect" onchange="onPageSizeChange()">
+        <option value="6">6 個</option>
+        <option value="12" selected>12 個</option>
+        <option value="24">24 個</option>
+        <option value="36">36 個</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- TAB 1: 報名 -->
+  <div class="tab-content active" id="tab1">
+    <div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 13px; font-weight: bold; color: #2e7d32;" id="tab1SubTitle">現貨總數：計算中...</span>
+      <label style="font-size: 13px; font-weight: 500; cursor: pointer;">
+        <input type="checkbox" id="onlyStockCheckbox" onchange="onFilterChange()" checked> 僅看有現貨
+      </label>
+    </div>
+
+    <div class="grid-container" id="gridContainer">載入商品中...</div>
+
+    <div class="pagination-bar" id="paginationBar">
+      <button id="prevBtn" onclick="changePage(-1)">上一頁</button>
+      <span class="page-info" id="pageInfo">第 1 / 1 頁</span>
+      <button id="nextBtn" onclick="changePage(1)">下一頁</button>
+    </div>
+  </div>
+
+  <!-- TAB 1 底部購物車列 -->
+  <div class="fixed-footer" id="tab1Footer">
+    <div class="footer-total" id="footerTotal">已選：0 杯</div>
+    <button class="btn-submit" id="btnOpenDrawer">明細與報名</button>
+  </div>
+
+  <!-- 購物車明細抽屜 -->
+  <div class="drawer" id="cartDrawer">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h4 style="font-size: 14px;">已選預訂清單</h4>
+      <span style="font-size: 13px; color: #888; cursor: pointer;" onclick="closeDrawer()">✕ 關閉</span>
+    </div>
+    <div id="drawerList"></div>
+    <button class="btn-submit" style="width: 100%; margin-top: 14px; border-radius: 8px;" onclick="confirmOrder()">確認提交報名</button>
+  </div>
+
+  <!-- TAB 2: 報名數目 -->
+  <div class="tab-content" id="tab2">
+    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+      <select id="viewTypeDropdown" onchange="loadTab2Data()">
+        <option value="week">每週記錄</option>
+        <option value="month">當月累計總額</option>
+      </select>
+    </div>
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>產品名稱</th>
+          <th>上週剩餘</th>
+          <th id="thRegHeader">本週報名</th>
+          <th>現時剩餘</th>
+        </tr>
+      </thead>
+      <tbody id="tab2Body"><tr><td colspan="4" style="padding:20px; color:#888;">載入中...</td></tr></tbody>
+      <tfoot id="tab2Foot"></tfoot>
+    </table>
+  </div>
+
+  <!-- TAB 3: 統計數目與條碼盤點 -->
+  <div class="tab-content" id="tab3">
+    <div class="barcode-input-panel">
+      <input type="text" id="manualBarcodeInput" placeholder="手動輸入條碼或用掃描槍刷條碼..." />
+      <button onclick="submitManualBarcode()">手動核算 (+1)</button>
+    </div>
+
+    <input type="file" id="cameraFileInput" accept="image/*" capture="environment" style="display: none;">
+
+    <div id="scannerWrapper">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-weight: bold; font-size: 13px;" id="scannerStatusText">相機掃描中...</span>
+        <button style="padding: 4px 8px; border: 1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;" onclick="stopScanner()">✕ 關閉相機</button>
+      </div>
+      <video id="readerVideo" autoplay playsinline muted></video>
+      <div id="reader"></div>
+    </div>
+
+    <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px;" id="tab3Header">剩餘庫存盤點</div>
+    <table class="report-table" style="margin-bottom: 80px;">
+      <thead>
+        <tr>
+          <th>產品名稱</th>
+          <th>剩餘數目</th>
+        </tr>
+      </thead>
+      <tbody id="tab3Body"><tr><td colspan="2" style="padding:20px; color:#888;">載入中...</td></tr></tbody>
+      <tfoot id="tab3Foot"></tfoot>
+    </table>
+
+    <div class="fixed-footer" style="justify-content: center;">
+      <button class="btn-submit" id="btnScanCode" onclick="startScanner()">📷 掃描條碼 Scan Code</button>
+    </div>
+  </div>
+
+  <!-- 條碼掃描確認彈窗 -->
+  <div class="modal-overlay" id="scanModal">
+    <div class="modal-box">
+      <img id="scanModalImg" src="" alt="">
+      <h4 id="scanModalName" style="font-size: 14px;"></h4>
+      <p style="color: #666; font-size: 13px; margin: 8px 0;">已確認該商品條碼，確認增加庫存 1 杯？</p>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">取消</button>
+        <button class="btn-confirm" onclick="confirmScanStock()">確認 (+1)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- System 專屬修改數值彈窗 -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal-box">
+      <h4 style="font-size: 15px; margin-bottom: 6px;">系統修改確認 (System)</h4>
+      <p id="editModalDesc" style="font-size: 13px; color: #555; margin-bottom: 12px;"></p>
+      <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px;">
+        <label style="font-size:13px;">新數值：</label>
+        <input type="number" id="editNewValInput" min="0" style="padding:6px 10px; width:90px; font-size:15px; text-align:center; border:1px solid #ccc; border-radius:6px;">
+      </div>
+      <p style="font-size:11px; color:#d32f2f;">⚠️ 此操作將直接修改試算表並記錄於系統Log中</p>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeEditModal()">取消</button>
+        <button class="btn-confirm" onclick="executeSystemEdit()">確認修改</button>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const GOOGLE_CLIENT_ID =
-      "709009270844-mdhc9tuanitn13fsbtrebrdirvhvn1uq.apps.googleusercontent.com";
-    const API_URL =
-      "https://script.google.com/macros/s/AKfycbz7ZsHjJsvmx-uer-60Oh6h9Xv_TpXN9PuWoOrKnOOrb2jfMCXu5cJYTZu7FGLjsNtC/exec";
-    const statusElement = document.getElementById("status");
-    const apiDataElement = document.getElementById("apiData");
+    const GOOGLE_CLIENT_ID = "709009270844-mdhc9tuanitn13fsbtrebrdirvhvn1uq.apps.googleusercontent.com";
+    const API_URL = "https://script.google.com/macros/s/AKfycbfz7ZsHjJsvmx-uer-60Oh6h9Xv_TpXN9PuWoOrKnOOrb2jfMCXu5cJYTZu7FGLjsNtC/exec";
 
-    let idToken = "";
+    let idToken = localStorage.getItem("cup_noodle_id_token") || "";
+    let userEmail = localStorage.getItem("cup_noodle_user_email") || "";
+    let userRole = localStorage.getItem("cup_noodle_user_role") || "我只是來吃吃的";
 
-    function setStatus(message) {
-      statusElement.textContent = message;
+    let products = [];
+    let tab2DataList = [];
+    let cart = {};
+    let currentBarcode = null;
+    let html5QrCode = null;
+    let activeTab = "tab1";
+    let localStream = null;
+    let isLiveScanning = false;
+
+    let currentPage = 1;
+    let pageSize = 12;
+
+    let deviceId = localStorage.getItem("cup_noodle_device_id");
+    if (!deviceId) {
+      deviceId = "DEV-" + Math.random().toString(36).substring(2, 6).toUpperCase() + "-" + Date.now().toString(36).slice(-4).toUpperCase();
+      localStorage.setItem("cup_noodle_device_id", deviceId);
     }
 
-    function parseJwt(token) {
-      const payload = token.split(".")[1];
-      if (!payload) throw new Error("Google 登入回應格式無效。");
-      const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-      return JSON.parse(decodeURIComponent(
-        atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="))
-          .split("")
-          .map((char) => "%" + ("00" + char.charCodeAt(0).toString(16)).slice(-2))
-          .join("")
-      ));
+    let pendingEdit = null;
+    const hasNativeBarcodeDetector = ('BarcodeDetector' in window);
+    let nativeDetector = null;
+    if (hasNativeBarcodeDetector) {
+      try {
+        nativeDetector = new BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code']
+        });
+      } catch (e) {
+        nativeDetector = null;
+      }
     }
 
+    // CORS 免預檢標準 API 呼叫函式
     async function apiRequest(path = "", options = {}) {
-      if (!idToken) throw new Error("請先完成 Google 登入。");
-
       const url = new URL(API_URL + path);
       let fetchOptions = { ...options };
-      const method = (options.method || "GET").toUpperCase();
 
-      if (method === "GET") {
-        url.searchParams.set("id_token", idToken);
+      if (!options.method || options.method.toUpperCase() === "GET") {
+        if (idToken) url.searchParams.set("id_token", idToken);
       } else {
         let payload = {};
         if (typeof options.body === "string") {
-          try {
-            payload = JSON.parse(options.body);
-          } catch {
-            payload = { data: options.body };
-          }
-        } else if (options.body && typeof options.body === "object") {
+          try { payload = JSON.parse(options.body); } catch (e) { payload = { data: options.body }; }
+        } else if (typeof options.body === "object") {
           payload = { ...options.body };
         }
+        if (idToken) payload.id_token = idToken;
 
-        payload.id_token = idToken;
         fetchOptions = {
           ...options,
           method: "POST",
-          headers: {
-            "Content-Type": "text/plain;charset=utf-8"
-          },
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(payload)
         };
       }
@@ -129,42 +426,627 @@
       }
       return response.json();
     }
-
     window.apiRequest = apiRequest;
+
+    function renderUserStatus() {
+      const textEl = document.getElementById("userStatusText");
+      const gisBox = document.getElementById("gisButtonBox");
+      const btnLogout = document.getElementById("btnLogout");
+
+      if (userEmail && userEmail.indexOf("@") > -1) {
+        textEl.innerText = `已登入：${userEmail} | 權限：${userRole}`;
+        gisBox.style.display = "none";
+        btnLogout.style.display = "inline-block";
+      } else {
+        textEl.innerText = "未登入訪客 (限購 3 杯)";
+        gisBox.style.display = "inline-block";
+        btnLogout.style.display = "none";
+      }
+    }
+
+    function parseJwt(token) {
+      const payload = token.split(".")[1];
+      if (!payload) throw new Error("無效的 Token 格式。");
+      const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(decodeURIComponent(
+        atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="))
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      ));
+    }
 
     async function handleCredentialResponse(response) {
       try {
         idToken = response.credential;
+        localStorage.setItem("cup_noodle_id_token", idToken);
         const profile = parseJwt(idToken);
-        setStatus(`已登入：${profile.email || "Google 帳號"}\n正在連線至後端…`);
-        const data = await apiRequest();
-        apiDataElement.textContent = JSON.stringify(data, null, 2);
-        apiDataElement.hidden = false;
-        setStatus(`已登入：${profile.email || "Google 帳號"}\n後端 API 連線成功。`);
-      } catch (error) {
-        idToken = "";
-        apiDataElement.hidden = true;
-        setStatus(`登入或 API 連線失敗：${error.message}`);
+        userEmail = profile.email || "";
+        localStorage.setItem("cup_noodle_user_email", userEmail);
+
+        // 向後端請求獲取該帳號的身分角色與商品
+        const sheetSel = document.getElementById("sheetSelect");
+        const weekSel = document.getElementById("weekSelect");
+        const sheet = sheetSel?.value || null;
+        const week = weekSel?.value ? Number(weekSel.value) : null;
+        await loadProducts(sheet, week);
+
+        renderUserStatus();
+        setupPermissions();
+      } catch (err) {
+        alert("登入處理失敗：" + err.message);
       }
     }
 
-    function initializeGoogleLogin() {
-      if (!window.google?.accounts?.id) {
-        setStatus("Google 登入元件載入失敗，請重新整理頁面。");
-        return;
+    function logoutUser() {
+      if (confirm("確定要登出 Google 帳號嗎？")) {
+        localStorage.removeItem("cup_noodle_id_token");
+        localStorage.removeItem("cup_noodle_user_email");
+        localStorage.removeItem("cup_noodle_user_role");
+        idToken = "";
+        userEmail = "";
+        userRole = "我只是來吃吃的";
+        renderUserStatus();
+        setupPermissions();
+        onSheetOrWeekChange();
       }
+    }
+
+    function initGoogleGIS() {
+      if (!window.google?.accounts?.id) return;
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredentialResponse
+        callback: handleCredentialResponse,
+        auto_select: true
       });
       google.accounts.id.renderButton(
-        document.getElementById("loginButton"),
-        { type: "standard", theme: "outline", size: "large", text: "signin_with" }
+        document.getElementById("gisButtonBox"),
+        { type: "standard", theme: "outline", size: "medium", text: "signin_with" }
       );
-      setStatus("請點擊 Google 登入按鈕。");
     }
 
-    window.addEventListener("load", initializeGoogleLogin);
+    function setupPermissions() {
+      const btn1 = document.getElementById("tab1Btn");
+      const btn2 = document.getElementById("tab2Btn");
+      const btn3 = document.getElementById("tab3Btn");
+      const sheetSel = document.getElementById("sheetSelect");
+      const sheetTxt = document.getElementById("sheetText");
+      const weekSel = document.getElementById("weekSelect");
+      const weekTxt = document.getElementById("weekText");
+
+      const roleStr = (userRole || "").toLowerCase();
+      const isSystem = (userRole === "System");
+      const isAdmin = (userRole === "Admin" || userRole === "管理員" || roleStr === "admin");
+      const isAuditor = (userRole === "核對員");
+
+      if (btn1) btn1.style.display = "block";
+      if (btn2) btn2.style.display = (isSystem || isAdmin) ? "block" : "none";
+      if (btn3) btn3.style.display = (isSystem || isAdmin || isAuditor) ? "block" : "none";
+
+      if (isSystem || isAdmin) {
+        if (sheetSel) sheetSel.style.display = "inline-block";
+        if (sheetTxt) sheetTxt.style.display = "none";
+        if (weekSel) weekSel.style.display = "inline-block";
+        if (weekTxt) weekTxt.style.display = "none";
+      } else {
+        if (sheetSel) sheetSel.style.display = "none";
+        if (sheetTxt) sheetTxt.style.display = "inline-block";
+        if (weekSel) weekSel.style.display = "none";
+        if (weekTxt) weekTxt.style.display = "inline-block";
+      }
+    }
+
+    function setupTabs() {
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+      });
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+
+      const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      const targetContent = document.getElementById(tabId);
+      if (targetBtn) targetBtn.classList.add("active");
+      if (targetContent) targetContent.classList.add("active");
+      activeTab = tabId;
+
+      const pageSizeContainer = document.getElementById("pageSizeContainer");
+      if (pageSizeContainer) pageSizeContainer.style.display = (tabId === "tab1") ? "flex" : "none";
+      const footer = document.getElementById("tab1Footer");
+      if (footer) footer.style.display = (tabId === "tab1") ? "flex" : "none";
+
+      if (tabId === "tab2") loadTab2Data();
+      if (tabId === "tab3") loadTab3Data();
+    }
+
+    function onPageSizeChange() {
+      pageSize = Number(document.getElementById("pageSizeSelect").value);
+      currentPage = 1;
+      renderGrid();
+    }
+
+    function onSheetOrWeekChange() {
+      const isHigh = (userRole === "System" || userRole === "Admin" || userRole === "管理員");
+      const sheetName = isHigh ? document.getElementById("sheetSelect").value : null;
+      const week = isHigh ? Number(document.getElementById("weekSelect").value) : null;
+      currentPage = 1;
+      loadProducts(sheetName, week);
+      if (activeTab === "tab2") loadTab2Data();
+      if (activeTab === "tab3") loadTab3Data();
+    }
+
+    async function loadProducts(targetSheet, targetWeek) {
+      const grid = document.getElementById("gridContainer");
+      if (grid && products.length === 0) {
+        grid.innerHTML = "<p style='grid-column:1/-1; text-align:center; color:#666; padding:40px;'>資料載入中，請稍候...</p>";
+      }
+
+      try {
+        let query = "?action=getProducts";
+        if (targetSheet) query += `&sheetName=${encodeURIComponent(targetSheet)}`;
+        if (targetWeek) query += `&week=${encodeURIComponent(targetWeek)}`;
+
+        const res = await apiRequest(query);
+        products = res.products || [];
+        if (res.userRole) {
+          userRole = res.userRole;
+          localStorage.setItem("cup_noodle_user_role", userRole);
+        }
+        if (res.userEmail) {
+          userEmail = res.userEmail;
+          localStorage.setItem("cup_noodle_user_email", userEmail);
+        }
+
+        renderUserStatus();
+        setupPermissions();
+
+        let totalStock = 0;
+        products.forEach(p => { totalStock += (Number(p.remain) || 0); });
+        const subTitleEl = document.getElementById("tab1SubTitle");
+        if (subTitleEl) subTitleEl.innerText = `現貨總數：${totalStock} 杯`;
+
+        const sel = document.getElementById("sheetSelect");
+        if (sel && sel.children.length === 0 && res.sheets) {
+          sel.innerHTML = "";
+          res.sheets.forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s;
+            opt.innerText = s.replace("杯麵每週訂購與統計表", "");
+            if (s === res.sheetName) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        }
+        const sheetTxt = document.getElementById("sheetText");
+        if (sheetTxt && res.sheetName) sheetTxt.innerText = res.sheetName.replace("杯麵每週訂購與統計表", "");
+
+        if (!targetWeek && res.currentWeek) {
+          const wSel = document.getElementById("weekSelect");
+          if (wSel) wSel.value = res.currentWeek;
+        }
+        const wTxt = document.getElementById("weekText");
+        if (wTxt) wTxt.innerText = `第 ${targetWeek || res.currentWeek} 週`;
+
+        renderGrid();
+        if (activeTab === "tab3") loadTab3Data();
+      } catch (err) {
+        if (grid) grid.innerHTML = `<p style='grid-column:1/-1; text-align:center; color:#d32f2f; padding:40px;'>載入失敗：${err.message}</p>`;
+      }
+    }
+
+    function onFilterChange() {
+      currentPage = 1;
+      renderGrid();
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById("gridContainer");
+      if (!grid) return;
+      grid.innerHTML = "";
+      const onlyStock = document.getElementById("onlyStockCheckbox").checked;
+      const filtered = products.filter(p => onlyStock ? (p.remain > 0) : true);
+
+      const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const pageItems = filtered.slice(startIndex, startIndex + pageSize);
+
+      pageItems.forEach(p => {
+        const card = document.createElement("div");
+        card.className = "card";
+        const stockHtml = p.remain > 0
+          ? `<div class="stock-tag in-stock">現貨：${p.remain} 杯</div>`
+          : '<div class="stock-tag preorder">需預訂 (現貨 0)</div>';
+
+        card.innerHTML =
+          `<div class="img-box"><img src="${p.imgUrl || 'https://via.placeholder.com/90?text=CupNoodle'}" loading="lazy" alt="${p.name}"></div>
+          <div class="title" title="${p.fullName}">${p.fullName}</div>
+          ${stockHtml}
+          <div class="stepper">
+            <button onclick="updateQty(${p.rowIndex}, -1)">-</button>
+            <div class="val" id="qty-${p.rowIndex}">${cart[p.rowIndex] || 0}</div>
+            <button onclick="updateQty(${p.rowIndex}, 1)">+</button>
+          </div>`;
+        grid.appendChild(card);
+      });
+
+      if (pageItems.length === 0) {
+        grid.innerHTML = "<p style='grid-column:1/-1; text-align:center; color:#999; padding:60px;'>目前無符合條件之現貨商品</p>";
+      }
+
+      document.getElementById("pageInfo").innerText = `第 ${currentPage} / ${totalPages} 頁 (共 ${filtered.length} 款)`;
+      document.getElementById("prevBtn").disabled = (currentPage <= 1);
+      document.getElementById("nextBtn").disabled = (currentPage >= totalPages);
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      renderGrid();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateQty(rowId, delta) {
+      const current = cart[rowId] || 0;
+      const next = current + delta;
+      if (current === 1 && delta === -1) {
+        if (!confirm("確定要將數量減至 0 並從預訂清單中移除嗎？")) return;
+      }
+      if (next <= 0) {
+        delete cart[rowId];
+      } else {
+        cart[rowId] = next;
+      }
+      const el = document.getElementById("qty-" + rowId);
+      if (el) el.innerText = cart[rowId] || 0;
+      updateFooterAndDrawer();
+    }
+
+    function updateFooterAndDrawer() {
+      let total = 0;
+      let listHtml = "";
+      for (const rId in cart) {
+        const p = products.find(x => x.rowIndex == rId);
+        if (p) {
+          total += cart[rId];
+          listHtml +=
+            `<div class="drawer-item">
+              <div>${p.fullName}</div>
+              <div class="stepper">
+                <button onclick="updateQty(${p.rowIndex}, -1)">-</button>
+                <div class="val">${cart[rId]}</div>
+                <button onclick="updateQty(${p.rowIndex}, 1)">+</button>
+              </div>
+            </div>`;
+        }
+      }
+      document.getElementById("footerTotal").innerText = `已選：${total} 杯`;
+      document.getElementById("drawerList").innerHTML = listHtml || "<p style='color:#999; text-align:center;'>尚未選擇任何商品</p>";
+    }
+
+    document.getElementById("btnOpenDrawer").onclick = () => {
+      const drawer = document.getElementById("cartDrawer");
+      drawer.style.display = (drawer.style.display === "block") ? "none" : "block";
+    };
+
+    function closeDrawer() {
+      document.getElementById("cartDrawer").style.display = "none";
+    }
+
+    async function confirmOrder() {
+      let total = 0;
+      const items = [];
+      for (const r in cart) {
+        const p = products.find(x => x.rowIndex == r);
+        if (p) {
+          total += cart[r];
+          items.push({ rowIndex: r, name: p.fullName, qty: cart[r] });
+        }
+      }
+      if (total === 0) {
+        alert("請至少選擇 1 杯麵！");
+        return;
+      }
+
+      const isGuest = (!userEmail || userEmail === "" || userEmail.indexOf("@") === -1);
+      if (isGuest && total > 3) {
+        alert("⚠️ 預訂限制提示：\n未登入訪客單次預訂不可超過 3 杯！\n若需訂購 3 杯以上，請使用上方 Google 帳號按鈕登入後再登記。");
+        return;
+      }
+
+      if (confirm(`確認提交預訂共 ${total} 杯？`)) {
+        const sheetSel = document.getElementById("sheetSelect");
+        const weekSel = document.getElementById("weekSelect");
+        const sheetName = sheetSel?.value || null;
+        const week = weekSel?.value ? Number(weekSel.value) : null;
+
+        const submitBtn = document.querySelector("#cartDrawer .btn-submit");
+        if (submitBtn) submitBtn.innerText = "⏳ 提交中...";
+
+        try {
+          await apiRequest("", {
+            method: "POST",
+            body: { action: "submitOrder", items, sheetName, week, deviceId }
+          });
+          if (submitBtn) submitBtn.innerText = "確認提交報名";
+          alert("預訂成功！" + (isGuest ? "（已記錄訪客設備登記）" : "確認信件已發送至您的 Gmail。"));
+          cart = {};
+          updateFooterAndDrawer();
+          closeDrawer();
+          loadProducts(sheetName, week);
+          if (activeTab === "tab2") loadTab2Data();
+        } catch (err) {
+          if (submitBtn) submitBtn.innerText = "確認提交報名";
+          alert("提交失敗：" + err.message);
+        }
+      }
+    }
+
+    async function loadTab2Data() {
+      const isHigh = (userRole === "System" || userRole === "Admin" || userRole === "管理員");
+      const isSystem = (userRole === "System");
+      const sheetName = isHigh ? document.getElementById("sheetSelect").value : null;
+      const week = isHigh ? Number(document.getElementById("weekSelect").value) : null;
+      const vType = document.getElementById("viewTypeDropdown").value;
+
+      document.getElementById("thRegHeader").innerText = (vType === "week") ? "本週報名" : "全月累計報名";
+
+      try {
+        let query = `?action=getTab2&viewType=${encodeURIComponent(vType)}`;
+        if (week) query += `&week=${encodeURIComponent(week)}`;
+        if (sheetName) query += `&sheetName=${encodeURIComponent(sheetName)}`;
+
+        const res = await apiRequest(query);
+        tab2DataList = res.rows || [];
+        const tbody = document.getElementById("tab2Body");
+        let html = "";
+        tab2DataList.forEach(r => {
+          const regEditBtn = (isSystem && vType === "week")
+            ? `<span class="edit-btn" onclick="openEditByRowIndex(${r.rowIndex}, 'reg', ${res.week})">✏️</span>` : "";
+          const remEditBtn = (isSystem && vType === "week")
+            ? `<span class="edit-btn" onclick="openEditByRowIndex(${r.rowIndex}, 'remain', ${res.week})">✏️</span>` : "";
+
+          html += `<tr>
+            <td>${r.name}</td>
+            <td>${r.prevRemain}</td>
+            <td>${r.regQty} ${regEditBtn}</td>
+            <td>${r.curRemain} ${remEditBtn}</td>
+          </tr>`;
+        });
+        tbody.innerHTML = html || '<tr><td colspan="4" style="padding:20px; color:#888;">本週暫無記錄</td></tr>';
+        document.getElementById("tab2Foot").innerHTML =
+          `<tr style="font-weight:bold; background:#fafafa;">
+            <td>總計</td><td>${res.totals.prevRemain}</td><td>${res.totals.regQty}</td><td>${res.totals.curRemain}</td>
+          </tr>`;
+      } catch (err) {
+        alert("載入報名數目失敗: " + err.message);
+      }
+    }
+
+    function loadTab3Data() {
+      const isSystem = (userRole === "System");
+      const isHigh = (isSystem || userRole === "Admin" || userRole === "管理員");
+      const week = isHigh ? Number(document.getElementById("weekSelect").value) : 1;
+
+      const tbody = document.getElementById("tab3Body");
+      let html = "";
+      let sum = 0;
+      products.forEach(p => {
+        const remEditBtn = isSystem
+          ? `<span class="edit-btn" onclick="openEditByRowIndex(${p.rowIndex}, 'remain', ${week})">✏️</span>` : "";
+        html += `<tr><td>${p.fullName}</td><td>${p.remain} ${remEditBtn}</td></tr>`;
+        sum += (Number(p.remain) || 0);
+      });
+      tbody.innerHTML = html;
+      document.getElementById("tab3Foot").innerHTML =
+        `<tr style="font-weight:bold; background:#fafafa;"><td>總計</td><td>${sum}</td></tr>`;
+    }
+
+    function openEditByRowIndex(rowIndex, fieldType, weekNum) {
+      const prod = products.find(x => x.rowIndex == rowIndex);
+      const prodName = prod ? prod.fullName : `品項 (第 ${rowIndex} 列)`;
+      let currentVal = 0;
+
+      if (fieldType === "remain") {
+        currentVal = prod ? prod.remain : 0;
+      } else {
+        const item2 = tab2DataList.find(y => y.rowIndex == rowIndex);
+        currentVal = item2 ? item2.regQty : 0;
+      }
+
+      pendingEdit = {
+        rowIndex,
+        prodName,
+        fieldType,
+        oldValue: currentVal,
+        weekNum,
+        sheetName: document.getElementById("sheetSelect").value
+      };
+
+      const fieldLabel = (fieldType === "reg") ? "本週報名數目" : "現時剩餘數目";
+      document.getElementById("editModalDesc").innerHTML =
+        `品項：<b>${prodName}</b><br>修改項目：<b>第 ${weekNum} 週 ${fieldLabel}</b><br>目前原數值：<b>${currentVal}</b>`;
+      document.getElementById("editNewValInput").value = currentVal;
+      document.getElementById("editModal").style.display = "flex";
+    }
+
+    function closeEditModal() {
+      document.getElementById("editModal").style.display = "none";
+      pendingEdit = null;
+    }
+
+    async function executeSystemEdit() {
+      if (!pendingEdit) return;
+      const newVal = document.getElementById("editNewValInput").value;
+      if (newVal === "" || isNaN(newVal) || Number(newVal) < 0) {
+        alert("請輸入正確的正整數數值！");
+        return;
+      }
+
+      const fieldLabel = (pendingEdit.fieldType === "reg") ? "報名數目" : "剩餘數目";
+      if (!confirm(`【防誤操作確認】\n確定將 [${pendingEdit.prodName}] 第 ${pendingEdit.weekNum} 週 ${fieldLabel} 由 ${pendingEdit.oldValue} 修改為 ${newVal} 嗎？`)) return;
+
+      try {
+        const res = await apiRequest("", {
+          method: "POST",
+          body: {
+            action: "systemEdit",
+            sheetName: pendingEdit.sheetName,
+            rowIndex: pendingEdit.rowIndex,
+            week: pendingEdit.weekNum,
+            fieldType: pendingEdit.fieldType,
+            oldValue: pendingEdit.oldValue,
+            newValue: newVal,
+            name: pendingEdit.prodName
+          }
+        });
+        closeEditModal();
+        if (res.success) {
+          alert("修改成功！已即時寫入試算表並留存於 Log 記錄表。");
+          onSheetOrWeekChange();
+        } else {
+          alert(res.msg);
+        }
+      } catch (err) {
+        alert("修改失敗: " + err.message);
+      }
+    }
+
+    function setupBarcodeInput() {
+      const inputEl = document.getElementById("manualBarcodeInput");
+      if (inputEl) {
+        inputEl.addEventListener("keypress", e => { if (e.key === "Enter") submitManualBarcode(); });
+      }
+    }
+
+    function submitManualBarcode() {
+      const inputEl = document.getElementById("manualBarcodeInput");
+      const code = inputEl ? inputEl.value.trim() : "";
+      if (!code) { alert("請輸入或掃描條碼！"); return; }
+      inputEl.value = "";
+      onBarcodeScanned(code);
+    }
+
+    function startScanner() {
+      const wrapper = document.getElementById("scannerWrapper");
+      const videoEl = document.getElementById("readerVideo");
+
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } }
+        }).then(stream => {
+          localStream = stream;
+          wrapper.style.display = "block";
+          videoEl.style.display = "block";
+          videoEl.srcObject = stream;
+          isLiveScanning = true;
+
+          if (nativeDetector) {
+            detectBarcodeStream(videoEl);
+          } else if (typeof Html5Qrcode !== "undefined") {
+            videoEl.style.display = "none";
+            if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 } }, onScanSuccess, () => {});
+          }
+        }).catch(() => {
+          alert("無法啟動相機，請使用手動輸入條碼核算。");
+        });
+      }
+    }
+
+    function detectBarcodeStream(videoEl) {
+      if (!isLiveScanning) return;
+      if (videoEl.readyState >= videoEl.HAVE_ENOUGH_DATA) {
+        nativeDetector.detect(videoEl).then(barcodes => {
+          if (barcodes && barcodes.length > 0 && isLiveScanning) {
+            stopScanner();
+            onBarcodeScanned(barcodes[0].rawValue);
+            return;
+          }
+          if (isLiveScanning) requestAnimationFrame(() => detectBarcodeStream(videoEl));
+        }).catch(() => {
+          if (isLiveScanning) requestAnimationFrame(() => detectBarcodeStream(videoEl));
+        });
+      } else {
+        if (isLiveScanning) requestAnimationFrame(() => detectBarcodeStream(videoEl));
+      }
+    }
+
+    function onScanSuccess(decodedText) {
+      stopScanner();
+      onBarcodeScanned(decodedText);
+    }
+
+    function stopScanner() {
+      isLiveScanning = false;
+      const wrapper = document.getElementById("scannerWrapper");
+      const videoEl = document.getElementById("readerVideo");
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.srcObject = null;
+        videoEl.style.display = "none";
+      }
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().finally(() => { if (wrapper) wrapper.style.display = "none"; });
+      } else {
+        if (wrapper) wrapper.style.display = "none";
+      }
+    }
+
+    function onBarcodeScanned(code) {
+      currentBarcode = code;
+      const p = products.find(x => x.barcode === code);
+      if (p) {
+        document.getElementById("scanModalImg").src = p.imgUrl || "https://via.placeholder.com/110";
+        document.getElementById("scanModalName").innerText = p.fullName;
+      } else {
+        document.getElementById("scanModalImg").src = "https://via.placeholder.com/110";
+        document.getElementById("scanModalName").innerText = "條碼：" + code;
+      }
+      document.getElementById("scanModal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("scanModal").style.display = "none";
+    }
+
+    async function confirmScanStock() {
+      const sheetSel = document.getElementById("sheetSelect");
+      const weekSel = document.getElementById("weekSelect");
+      const sheetName = sheetSel?.value || null;
+      const week = weekSel?.value ? Number(weekSel.value) : null;
+
+      try {
+        const res = await apiRequest("", {
+          method: "POST",
+          body: { action: "confirmBarcode", barcode: currentBarcode, sheetName, week }
+        });
+        closeModal();
+        if (res.success) {
+          alert(`核算成功：${res.name} 庫存已增加至 ${res.newStock}`);
+          loadProducts(sheetName, week);
+        } else {
+          alert(res.msg);
+        }
+      } catch (err) {
+        alert("條碼核算失敗: " + err.message);
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      renderUserStatus();
+      setupTabs();
+      setupPermissions();
+      setupBarcodeInput();
+      initGoogleGIS();
+      loadProducts(null, null);
+    });
   </script>
 </body>
 </html>
