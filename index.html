@@ -359,6 +359,7 @@
 
   <script>
     const GOOGLE_CLIENT_ID = "709009270844-mdhc9tuanitn13fsbtrebrdirvhvn1uq.apps.googleusercontent.com";
+    // 精準對齊第 22 版 Apps Script 部署作業網址
     const API_URL = "https://script.google.com/macros/s/AKfycbymW1267l6UWmdVElFgupFmOMo735hctNkAztjttTJfzUF4rpJ-qvmT3spGRBX5n27p/exec";
 
     let idToken = localStorage.getItem("cup_noodle_id_token") || "";
@@ -434,7 +435,13 @@
       const btnLogout = document.getElementById("btnLogout");
 
       if (userEmail && userEmail.indexOf("@") > -1) {
-        textEl.innerText = `已登入：${userEmail} | 權限：${userRole}`;
+        let roleBadge = userRole;
+        if (userRole === "我只是來大吃的") {
+          roleBadge = "我只是來大吃的 (無限額)";
+        } else if (userRole === "我只是來吃吃的") {
+          roleBadge = "我只是來吃吃的 (限購3杯)";
+        }
+        textEl.innerText = `已登入：${userEmail} | 權限：${roleBadge}`;
         gisBox.style.display = "none";
         btnLogout.style.display = "inline-block";
       } else {
@@ -464,7 +471,10 @@
         userEmail = profile.email || "";
         localStorage.setItem("cup_noodle_user_email", userEmail);
 
-        // 向後端請求獲取該帳號的身分角色與商品
+        // 立即刷新前端狀態列（避免等待伺服器時空白）
+        renderUserStatus();
+
+        // 向後端請求同步該帳號在試算表中的專屬權限
         const sheetSel = document.getElementById("sheetSelect");
         const weekSel = document.getElementById("weekSelect");
         const sheet = sheetSel?.value || null;
@@ -751,8 +761,17 @@
       }
 
       const isGuest = (!userEmail || userEmail === "" || userEmail.indexOf("@") === -1);
+      const isFoodieLimited = (userRole === "我只是來吃吃的");
+
+      // 訪客限額 3 杯
       if (isGuest && total > 3) {
         alert("⚠️ 預訂限制提示：\n未登入訪客單次預訂不可超過 3 杯！\n若需訂購 3 杯以上，請使用上方 Google 帳號按鈕登入後再登記。");
+        return;
+      }
+
+      // 「我只是來吃吃的」限額 3 杯；「我只是來大吃的」不設限
+      if (!isGuest && isFoodieLimited && total > 3) {
+        alert("⚠️ 預訂限制提示：\n您的身分為「我只是來吃吃的」，單次預訂上限為 3 杯！\n若需無限制訂購，請聯絡管理員將您的身分調整為「我只是來大吃的」。");
         return;
       }
 
@@ -1039,12 +1058,21 @@
       }
     }
 
+    // 初始化 Google GIS 元件
+    function safeInitGIS() {
+      if (window.google?.accounts?.id) {
+        initGoogleGIS();
+      } else {
+        window.addEventListener("load", initGoogleGIS);
+      }
+    }
+
     window.addEventListener("DOMContentLoaded", () => {
       renderUserStatus();
       setupTabs();
       setupPermissions();
       setupBarcodeInput();
-      initGoogleGIS();
+      safeInitGIS();
       loadProducts(null, null);
     });
   </script>
