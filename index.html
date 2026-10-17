@@ -745,7 +745,7 @@
       document.getElementById("cartDrawer").style.display = "none";
     }
 
-    async function confirmOrder() {
+       async function confirmOrder() {
       let total = 0;
       const items = [];
       for (const r in cart) {
@@ -763,18 +763,19 @@
       const isGuest = (!userEmail || userEmail === "" || userEmail.indexOf("@") === -1);
       const isFoodieLimited = (userRole === "我只是來吃吃的");
 
-      // 訪客限額 3 杯
+      // 1. 未登入訪客：限制 3 杯
       if (isGuest && total > 3) {
         alert("⚠️ 預訂限制提示：\n未登入訪客單次預訂不可超過 3 杯！\n若需訂購 3 杯以上，請使用上方 Google 帳號按鈕登入後再登記。");
         return;
       }
 
-      // 「我只是來吃吃的」限額 3 杯；「我只是來大吃的」不設限
+      // 2. 「我只是來吃吃的」：限制 3 杯
       if (!isGuest && isFoodieLimited && total > 3) {
         alert("⚠️ 預訂限制提示：\n您的身分為「我只是來吃吃的」，單次預訂上限為 3 杯！\n若需無限制訂購，請聯絡管理員將您的身分調整為「我只是來大吃的」。");
         return;
       }
 
+      // 3. 「我只是來大吃的」/ System / Admin / 核對員：無限制，直接放行
       if (confirm(`確認提交預訂共 ${total} 杯？`)) {
         const sheetSel = document.getElementById("sheetSelect");
         const weekSel = document.getElementById("weekSelect");
@@ -802,6 +803,7 @@
         }
       }
     }
+
 
     async function loadTab2Data() {
       const isHigh = (userRole === "System" || userRole === "Admin" || userRole === "管理員");
