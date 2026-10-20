@@ -115,7 +115,7 @@
 
     .stepper { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: auto; width: 100%; }
     .stepper button { width: 28px; height: 28px; border-radius: 4px; border: 1px solid #ddd; background: #fafafa; font-size: 16px; font-weight: bold; cursor: pointer; }
-    .stepper .val { font-size: 14px; min-width: 24px; font-weight: bold; }
+    .stepper .val { font-size: 14px; min-width: 24px; font-weight: bold; text-align: center; }
 
     .pagination-bar { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 16px 0 10px 0; }
     .pagination-bar button { padding: 6px 14px; border-radius: 6px; border: 1px solid #ccc; background: #fff; font-size: 13px; font-weight: 500; cursor: pointer; }
@@ -130,12 +130,32 @@
     .drawer-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
 
     .report-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; border-radius: 6px; overflow: hidden; }
-    .report-table th, .report-table td { padding: 8px 6px; border: 1px solid #eee; text-align: center; }
+    .report-table th, .report-table td { padding: 9px 6px; border: 1px solid #eee; text-align: center; }
     .report-table th { background: #fafafa; font-weight: 600; color: #555; }
     .report-table td:first-child { text-align: left; }
 
-    .edit-btn { display: inline-block; margin-left: 4px; cursor: pointer; font-size: 12px; color: #1976d2; user-select: none; }
-    .edit-btn:hover { color: #d32f2f; }
+    /* 醒目的可點擊修改樣式 */
+    .stock-badge-edit {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: #e3f2fd;
+      color: #1565c0;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+    .stock-badge-edit:hover {
+      background: #bbdefb;
+      transform: scale(1.03);
+    }
+    .stock-badge-static {
+      display: inline-block;
+      padding: 4px 8px;
+      font-weight: 600;
+    }
 
     #scannerWrapper {
       display: none;
@@ -161,14 +181,14 @@
     }
     .barcode-input-panel input {
       flex: 1;
-      padding: 9px 12px;
+      padding: 10px 12px;
       border: 1px solid #ccc;
       border-radius: 6px;
       font-size: 14px;
       outline: none;
     }
     .barcode-input-panel button {
-      padding: 9px 16px;
+      padding: 10px 16px;
       background: #1565c0;
       color: #fff;
       border: none;
@@ -176,15 +196,17 @@
       font-size: 13px;
       font-weight: bold;
       cursor: pointer;
+      white-space: nowrap;
     }
 
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: none; align-items: center; justify-content: center; }
-    .modal-box { background: #fff; border-radius: 12px; width: 85%; max-width: 340px; padding: 20px; text-align: center; }
-    .modal-box img { width: 110px; height: 110px; object-fit: contain; margin-bottom: 10px; }
-    .modal-actions { display: flex; gap: 10px; margin-top: 15px; }
-    .modal-actions button { flex: 1; padding: 10px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+    /* 全局 PopUp 模態框樣式 */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .modal-box { background: #fff; border-radius: 14px; width: 100%; max-width: 350px; padding: 22px 20px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .modal-box img { width: 100px; height: 100px; object-fit: contain; margin-bottom: 10px; border-radius: 6px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .modal-actions button { flex: 1; padding: 11px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: bold; }
     .btn-confirm { background: #d32f2f; color: #fff; }
-    .btn-cancel { background: #eee; color: #333; }
+    .btn-cancel { background: #f0f0f0; color: #444; }
   </style>
 </head>
 <body>
@@ -295,79 +317,105 @@
   <!-- TAB 3: 統計數目與條碼盤點 -->
   <div class="tab-content" id="tab3">
     <div class="barcode-input-panel">
-      <input type="text" id="manualBarcodeInput" placeholder="手動輸入條碼或用掃描槍刷條碼..." />
-      <button onclick="submitManualBarcode()">手動核算 (+1)</button>
+      <input type="text" id="manualBarcodeInput" placeholder="輸入條碼 (如 89686180657)..." />
+      <button onclick="handleManualBarcodeClick()">盤點修改</button>
     </div>
 
     <input type="file" id="cameraFileInput" accept="image/*" capture="environment" style="display: none;">
 
     <div id="scannerWrapper">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-weight: bold; font-size: 13px;" id="scannerStatusText">相機掃描中...</span>
+        <span style="font-weight: bold; font-size: 13px;" id="scannerStatusText">相機微距對焦掃描中...</span>
         <button style="padding: 4px 8px; border: 1px solid #ccc; background:#fff; border-radius:4px; cursor:pointer;" onclick="stopScanner()">✕ 關閉相機</button>
       </div>
       <video id="readerVideo" autoplay playsinline muted></video>
       <div id="reader"></div>
     </div>
 
-    <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px;" id="tab3Header">剩餘庫存盤點</div>
+    <div style="font-weight: bold; font-size: 13px; margin-bottom: 8px;" id="tab3Header">庫存盤點 (上次剩餘 vs 最新剩餘)</div>
     <table class="report-table" style="margin-bottom: 80px;">
       <thead>
         <tr>
           <th>產品名稱</th>
-          <th>剩餘數目</th>
+          <th>上次/最近剩餘</th>
+          <th>最新剩餘 (點擊修改)</th>
         </tr>
       </thead>
-      <tbody id="tab3Body"><tr><td colspan="2" style="padding:20px; color:#888;">載入中...</td></tr></tbody>
+      <tbody id="tab3Body"><tr><td colspan="3" style="padding:20px; color:#888;">載入中...</td></tr></tbody>
       <tfoot id="tab3Foot"></tfoot>
     </table>
 
     <div class="fixed-footer" style="justify-content: center;">
-      <button class="btn-submit" id="btnScanCode" onclick="startScanner()">📷 掃描條碼 Scan Code</button>
+      <button class="btn-submit" id="btnScanCode" onclick="startScanner()">📷 微距掃描條碼 Scan Code</button>
     </div>
   </div>
 
-  <!-- 條碼掃描確認彈窗 -->
+  <!-- 條碼掃描/手動輸入 PopUp (含 - <數量> + 調整器) -->
   <div class="modal-overlay" id="scanModal">
     <div class="modal-box">
-      <img id="scanModalImg" src="" alt="">
-      <h4 id="scanModalName" style="font-size: 14px;"></h4>
-      <p style="color: #666; font-size: 13px; margin: 8px 0;">已確認該商品條碼，確認增加庫存 1 杯？</p>
+      <img id="scanModalImg" src="" alt="杯麵圖片">
+      <h4 id="scanModalName" style="font-size: 15px; margin-bottom: 4px;"></h4>
+      <p id="scanModalBarcode" style="color: #666; font-size: 12px; margin-bottom: 12px;"></p>
+      
+      <p style="font-size: 13px; font-weight: 600; color: #444; margin-bottom: 6px;">調整盤點增減數量：</p>
+      <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin: 10px 0;">
+        <button onclick="adjustScanQty(-1)" style="width: 36px; height: 36px; border-radius: 8px; border: 1px solid #ccc; background: #fafafa; font-size: 20px; font-weight: bold; cursor: pointer;">-</button>
+        <input type="number" id="scanModalQtyInput" value="1" min="1" style="width: 70px; height: 36px; text-align: center; font-size: 16px; font-weight: bold; border: 1px solid #ccc; border-radius: 8px;">
+        <button onclick="adjustScanQty(1)" style="width: 36px; height: 36px; border-radius: 8px; border: 1px solid #ccc; background: #fafafa; font-size: 20px; font-weight: bold; cursor: pointer;">+</button>
+      </div>
+      <p style="font-size: 11px; color: #888;">點擊確認後將寫入試算表並生成條碼圖</p>
+
       <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeModal()">取消</button>
-        <button class="btn-confirm" onclick="confirmScanStock()">確認 (+1)</button>
+        <button class="btn-cancel" onclick="closeModal('scanModal')">取消</button>
+        <button class="btn-confirm" id="btnConfirmScan" onclick="confirmScanStock()">確認 (+數量)</button>
       </div>
     </div>
   </div>
 
-  <!-- System 專屬修改數值彈窗 -->
+  <!-- 核對員/System 最新剩餘修改 PopUp -->
   <div class="modal-overlay" id="editModal">
     <div class="modal-box">
-      <h4 style="font-size: 15px; margin-bottom: 6px;">系統修改確認 (System)</h4>
+      <img id="editModalImg" src="" alt="杯麵圖片" style="width:90px; height:90px; object-fit:contain; margin-bottom:6px;">
+      <h4 id="editModalProdTitle" style="font-size: 15px; margin-bottom: 6px;"></h4>
       <p id="editModalDesc" style="font-size: 13px; color: #555; margin-bottom: 12px;"></p>
-      <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px;">
-        <label style="font-size:13px;">新數值：</label>
-        <input type="number" id="editNewValInput" min="0" style="padding:6px 10px; width:90px; font-size:15px; text-align:center; border:1px solid #ccc; border-radius:6px;">
+      
+      <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin: 10px 0;">
+        <button onclick="adjustEditVal(-1)" style="width: 36px; height: 36px; border-radius: 8px; border: 1px solid #ccc; background: #fafafa; font-size: 20px; font-weight: bold; cursor: pointer;">-</button>
+        <input type="number" id="editNewValInput" min="0" style="width: 80px; height: 36px; font-size: 16px; text-align: center; font-weight: bold; border: 1px solid #ccc; border-radius: 8px;">
+        <button onclick="adjustEditVal(1)" style="width: 36px; height: 36px; border-radius: 8px; border: 1px solid #ccc; background: #fafafa; font-size: 20px; font-weight: bold; cursor: pointer;">+</button>
       </div>
-      <p style="font-size:11px; color:#d32f2f;">⚠️ 此操作將直接修改試算表並記錄於系統Log中</p>
+      <p style="font-size: 11px; color: #d32f2f;">⚠️ 將直接更新本週試算表最新剩餘並寫入記錄表</p>
+
       <div class="modal-actions">
-        <button class="btn-cancel" onclick="closeEditModal()">取消</button>
+        <button class="btn-cancel" onclick="closeModal('editModal')">取消</button>
         <button class="btn-confirm" onclick="executeSystemEdit()">確認修改</button>
       </div>
     </div>
   </div>
 
+  <!-- 統一客製化系統對話框 (取代瀏覽器原生 alert 與 confirm) -->
+  <div class="modal-overlay" id="appDialogModal">
+    <div class="modal-box">
+      <h4 id="appDialogTitle" style="font-size: 16px; margin-bottom: 10px; color: #222;"></h4>
+      <p id="appDialogMsg" style="font-size: 14px; color: #555; line-height: 1.6; margin-bottom: 8px;"></p>
+      <div class="modal-actions" id="appDialogActions"></div>
+    </div>
+  </div>
+
   <script>
     const GOOGLE_CLIENT_ID = "709009270844-mdhc9tuanitn13fsbtrebrdirvhvn1uq.apps.googleusercontent.com";
-    // 精準對齊第 22 版 Apps Script 部署作業網址
     const API_URL = "https://script.google.com/macros/s/AKfycbymW1267l6UWmdVElFgupFmOMo735hctNkAztjttTJfzUF4rpJ-qvmT3spGRBX5n27p/exec";
 
     let idToken = localStorage.getItem("cup_noodle_id_token") || "";
     let userEmail = localStorage.getItem("cup_noodle_user_email") || "";
     let userRole = localStorage.getItem("cup_noodle_user_role") || "我只是來吃吃的";
 
+    let currentActiveSheetName = "";
+    let currentActiveWeek = 1;
+
     let products = [];
     let tab2DataList = [];
+    let tab3DataList = [];
     let cart = {};
     let currentBarcode = null;
     let html5QrCode = null;
@@ -397,7 +445,59 @@
       }
     }
 
-    // CORS 免預檢標準 API 呼叫函式
+    // 自訂 In-App 彈窗對話框
+    function appAlert(message, title = "系統提示") {
+      return new Promise(resolve => {
+        const modal = document.getElementById("appDialogModal");
+        const titleEl = document.getElementById("appDialogTitle");
+        const msgEl = document.getElementById("appDialogMsg");
+        const actionsEl = document.getElementById("appDialogActions");
+
+        titleEl.innerText = title;
+        msgEl.innerHTML = (message || "").replace(/\n/g, "<br>");
+        actionsEl.innerHTML = `<button class="btn-confirm" id="appDialogOkBtn" style="width:100%; border-radius:8px; padding:10px;">確定</button>`;
+        
+        modal.style.display = "flex";
+        document.getElementById("appDialogOkBtn").onclick = () => {
+          modal.style.display = "none";
+          resolve();
+        };
+      });
+    }
+
+    function appConfirm(message, title = "操作確認") {
+      return new Promise(resolve => {
+        const modal = document.getElementById("appDialogModal");
+        const titleEl = document.getElementById("appDialogTitle");
+        const msgEl = document.getElementById("appDialogMsg");
+        const actionsEl = document.getElementById("appDialogActions");
+
+        titleEl.innerText = title;
+        msgEl.innerHTML = (message || "").replace(/\n/g, "<br>");
+        actionsEl.innerHTML = `
+          <button class="btn-cancel" id="appDialogCancelBtn">取消</button>
+          <button class="btn-confirm" id="appDialogConfirmBtn">確認</button>
+        `;
+        
+        modal.style.display = "flex";
+        document.getElementById("appDialogCancelBtn").onclick = () => {
+          modal.style.display = "none";
+          resolve(false);
+        };
+        document.getElementById("appDialogConfirmBtn").onclick = () => {
+          modal.style.display = "none";
+          resolve(true);
+        };
+      });
+    }
+
+    function cleanBarcode(code) {
+      if (!code) return "";
+      let s = code.toString().trim();
+      if (s.endsWith(".0")) s = s.substring(0, s.length - 2);
+      return s.replace(/^0+/, "");
+    }
+
     async function apiRequest(path = "", options = {}) {
       const url = new URL(API_URL + path);
       let fetchOptions = { ...options };
@@ -471,25 +571,19 @@
         userEmail = profile.email || "";
         localStorage.setItem("cup_noodle_user_email", userEmail);
 
-        // 立即刷新前端狀態列（避免等待伺服器時空白）
         renderUserStatus();
 
-        // 向後端請求同步該帳號在試算表中的專屬權限
-        const sheetSel = document.getElementById("sheetSelect");
-        const weekSel = document.getElementById("weekSelect");
-        const sheet = sheetSel?.value || null;
-        const week = weekSel?.value ? Number(weekSel.value) : null;
-        await loadProducts(sheet, week);
-
+        await loadProducts(currentActiveSheetName || null, currentActiveWeek || null);
         renderUserStatus();
         setupPermissions();
       } catch (err) {
-        alert("登入處理失敗：" + err.message);
+        appAlert("登入處理失敗：" + err.message, "登入錯誤");
       }
     }
 
-    function logoutUser() {
-      if (confirm("確定要登出 Google 帳號嗎？")) {
+    async function logoutUser() {
+      const ok = await appConfirm("確定要登出 Google 帳號嗎？", "帳號登出");
+      if (ok) {
         localStorage.removeItem("cup_noodle_id_token");
         localStorage.removeItem("cup_noodle_user_email");
         localStorage.removeItem("cup_noodle_user_role");
@@ -608,6 +702,8 @@
           userEmail = res.userEmail;
           localStorage.setItem("cup_noodle_user_email", userEmail);
         }
+        if (res.sheetName) currentActiveSheetName = res.sheetName;
+        if (res.currentWeek) currentActiveWeek = res.currentWeek;
 
         renderUserStatus();
         setupPermissions();
@@ -631,12 +727,12 @@
         const sheetTxt = document.getElementById("sheetText");
         if (sheetTxt && res.sheetName) sheetTxt.innerText = res.sheetName.replace("杯麵每週訂購與統計表", "");
 
-        if (!targetWeek && res.currentWeek) {
+        if (res.currentWeek) {
           const wSel = document.getElementById("weekSelect");
           if (wSel) wSel.value = res.currentWeek;
+          const wTxt = document.getElementById("weekText");
+          if (wTxt) wTxt.innerText = `第 ${res.currentWeek} 週`;
         }
-        const wTxt = document.getElementById("weekText");
-        if (wTxt) wTxt.innerText = `第 ${targetWeek || res.currentWeek} 週`;
 
         renderGrid();
         if (activeTab === "tab3") loadTab3Data();
@@ -698,11 +794,12 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function updateQty(rowId, delta) {
+    async function updateQty(rowId, delta) {
       const current = cart[rowId] || 0;
       const next = current + delta;
       if (current === 1 && delta === -1) {
-        if (!confirm("確定要將數量減至 0 並從預訂清單中移除嗎？")) return;
+        const ok = await appConfirm("確定要將數量減至 0 並從預訂清單中移除嗎？", "清單調整");
+        if (!ok) return;
       }
       if (next <= 0) {
         delete cart[rowId];
@@ -745,7 +842,7 @@
       document.getElementById("cartDrawer").style.display = "none";
     }
 
-       async function confirmOrder() {
+    async function confirmOrder() {
       let total = 0;
       const items = [];
       for (const r in cart) {
@@ -756,31 +853,27 @@
         }
       }
       if (total === 0) {
-        alert("請至少選擇 1 杯麵！");
+        await appAlert("請至少選擇 1 杯麵！", "提示");
         return;
       }
 
       const isGuest = (!userEmail || userEmail === "" || userEmail.indexOf("@") === -1);
       const isFoodieLimited = (userRole === "我只是來吃吃的");
 
-      // 1. 未登入訪客：限制 3 杯
       if (isGuest && total > 3) {
-        alert("⚠️ 預訂限制提示：\n未登入訪客單次預訂不可超過 3 杯！\n若需訂購 3 杯以上，請使用上方 Google 帳號按鈕登入後再登記。");
+        await appAlert("未登入訪客單次預訂不可超過 3 杯！\n若需訂購 3 杯以上，請使用上方 Google 帳號按鈕登入後再登記。", "預訂限制提示");
         return;
       }
 
-      // 2. 「我只是來吃吃的」：限制 3 杯
       if (!isGuest && isFoodieLimited && total > 3) {
-        alert("⚠️ 預訂限制提示：\n您的身分為「我只是來吃吃的」，單次預訂上限為 3 杯！\n若需無限制訂購，請聯絡管理員將您的身分調整為「我只是來大吃的」。");
+        await appAlert("您的身分為「我只是來吃吃的」，單次預訂上限為 3 杯！\n若需無限制訂購，請聯絡管理員將您的身分調整為「我只是來大吃的」。", "預訂限制提示");
         return;
       }
 
-      // 3. 「我只是來大吃的」/ System / Admin / 核對員：無限制，直接放行
-      if (confirm(`確認提交預訂共 ${total} 杯？`)) {
-        const sheetSel = document.getElementById("sheetSelect");
-        const weekSel = document.getElementById("weekSelect");
-        const sheetName = sheetSel?.value || null;
-        const week = weekSel?.value ? Number(weekSel.value) : null;
+      const ok = await appConfirm(`確認提交預訂共 ${total} 杯？`, "確認預訂");
+      if (ok) {
+        const sheetName = currentActiveSheetName || null;
+        const week = currentActiveWeek || null;
 
         const submitBtn = document.querySelector("#cartDrawer .btn-submit");
         if (submitBtn) submitBtn.innerText = "⏳ 提交中...";
@@ -791,7 +884,7 @@
             body: { action: "submitOrder", items, sheetName, week, deviceId }
           });
           if (submitBtn) submitBtn.innerText = "確認提交報名";
-          alert("預訂成功！" + (isGuest ? "（已記錄訪客設備登記）" : "確認信件已發送至您的 Gmail。"));
+          await appAlert("預訂成功！" + (isGuest ? "（已記錄訪客設備登記）" : "確認信件已發送至您的 Gmail。"), "預訂結果");
           cart = {};
           updateFooterAndDrawer();
           closeDrawer();
@@ -799,17 +892,16 @@
           if (activeTab === "tab2") loadTab2Data();
         } catch (err) {
           if (submitBtn) submitBtn.innerText = "確認提交報名";
-          alert("提交失敗：" + err.message);
+          await appAlert("提交失敗：" + err.message, "錯誤");
         }
       }
     }
 
-
     async function loadTab2Data() {
       const isHigh = (userRole === "System" || userRole === "Admin" || userRole === "管理員");
       const isSystem = (userRole === "System");
-      const sheetName = isHigh ? document.getElementById("sheetSelect").value : null;
-      const week = isHigh ? Number(document.getElementById("weekSelect").value) : null;
+      const sheetName = isHigh ? document.getElementById("sheetSelect").value : currentActiveSheetName;
+      const week = isHigh ? Number(document.getElementById("weekSelect").value) : currentActiveWeek;
       const vType = document.getElementById("viewTypeDropdown").value;
 
       document.getElementById("thRegHeader").innerText = (vType === "week") ? "本週報名" : "全月累計報名";
@@ -825,9 +917,9 @@
         let html = "";
         tab2DataList.forEach(r => {
           const regEditBtn = (isSystem && vType === "week")
-            ? `<span class="edit-btn" onclick="openEditByRowIndex(${r.rowIndex}, 'reg', ${res.week})">✏️</span>` : "";
+            ? `<span class="stock-badge-edit" style="margin-left:4px; padding:2px 6px;" onclick="openEditByRowIndex(${r.rowIndex}, 'reg', ${res.week})">✏️</span>` : "";
           const remEditBtn = (isSystem && vType === "week")
-            ? `<span class="edit-btn" onclick="openEditByRowIndex(${r.rowIndex}, 'remain', ${res.week})">✏️</span>` : "";
+            ? `<span class="stock-badge-edit" style="margin-left:4px; padding:2px 6px;" onclick="openEditByRowIndex(${r.rowIndex}, 'remain', ${res.week})">✏️</span>` : "";
 
           html += `<tr>
             <td>${r.name}</td>
@@ -842,72 +934,103 @@
             <td>總計</td><td>${res.totals.prevRemain}</td><td>${res.totals.regQty}</td><td>${res.totals.curRemain}</td>
           </tr>`;
       } catch (err) {
-        alert("載入報名數目失敗: " + err.message);
+        appAlert("載入報名數目失敗: " + err.message, "讀取錯誤");
       }
     }
 
-    function loadTab3Data() {
-      const isSystem = (userRole === "System");
-      const isHigh = (isSystem || userRole === "Admin" || userRole === "管理員");
-      const week = isHigh ? Number(document.getElementById("weekSelect").value) : 1;
+    // Tab 3：上次剩餘 vs 最新剩餘，核對員可直接大面積點擊修改
+    async function loadTab3Data() {
+      const roleStr = (userRole || "").toLowerCase();
+      const canEdit = (userRole === "System" || userRole === "Admin" || userRole === "核對員" || roleStr === "admin");
+      const week = currentActiveWeek || 1;
+      const sheetName = currentActiveSheetName || null;
 
-      const tbody = document.getElementById("tab3Body");
-      let html = "";
-      let sum = 0;
-      products.forEach(p => {
-        const remEditBtn = isSystem
-          ? `<span class="edit-btn" onclick="openEditByRowIndex(${p.rowIndex}, 'remain', ${week})">✏️</span>` : "";
-        html += `<tr><td>${p.fullName}</td><td>${p.remain} ${remEditBtn}</td></tr>`;
-        sum += (Number(p.remain) || 0);
-      });
-      tbody.innerHTML = html;
-      document.getElementById("tab3Foot").innerHTML =
-        `<tr style="font-weight:bold; background:#fafafa;"><td>總計</td><td>${sum}</td></tr>`;
+      try {
+        let query = `?action=getTab3&week=${encodeURIComponent(week)}`;
+        if (sheetName) query += `&sheetName=${encodeURIComponent(sheetName)}`;
+
+        const res = await apiRequest(query);
+        tab3DataList = res.items || [];
+        const tbody = document.getElementById("tab3Body");
+        let html = "";
+        let sumPrev = 0;
+        let sumCur = 0;
+
+        tab3DataList.forEach(p => {
+          const remainCellContent = canEdit 
+            ? `<div class="stock-badge-edit" onclick="openTab3EditModal(${p.rowIndex})">
+                 <span>${p.curRemain} 杯</span>
+                 <span style="font-size:11px; opacity:0.8;">✏️ 更改</span>
+               </div>`
+            : `<div class="stock-badge-static">${p.curRemain} 杯</div>`;
+
+          html += `<tr>
+            <td>${p.name}</td>
+            <td>${p.prevRemain} 杯</td>
+            <td>${remainCellContent}</td>
+          </tr>`;
+          sumPrev += (Number(p.prevRemain) || 0);
+          sumCur += (Number(p.curRemain) || 0);
+        });
+
+        tbody.innerHTML = html || '<tr><td colspan="3" style="padding:20px; color:#888;">暫無商品庫存資料</td></tr>';
+        document.getElementById("tab3Foot").innerHTML =
+          `<tr style="font-weight:bold; background:#fafafa;">
+            <td>總計</td>
+            <td>${sumPrev} 杯</td>
+            <td>${sumCur} 杯</td>
+          </tr>`;
+      } catch (e) {
+        console.warn("載入 Tab3 失敗: ", e);
+      }
     }
 
-    function openEditByRowIndex(rowIndex, fieldType, weekNum) {
-      const prod = products.find(x => x.rowIndex == rowIndex);
-      const prodName = prod ? prod.fullName : `品項 (第 ${rowIndex} 列)`;
-      let currentVal = 0;
-
-      if (fieldType === "remain") {
-        currentVal = prod ? prod.remain : 0;
-      } else {
-        const item2 = tab2DataList.find(y => y.rowIndex == rowIndex);
-        currentVal = item2 ? item2.regQty : 0;
-      }
+    function openTab3EditModal(rowIndex) {
+      const pTab3 = tab3DataList.find(x => x.rowIndex == rowIndex);
+      const pProd = products.find(x => x.rowIndex == rowIndex);
+      const prodName = pTab3 ? pTab3.name : (pProd ? pProd.fullName : `品項 (第 ${rowIndex} 列)`);
+      const currentVal = pTab3 ? pTab3.curRemain : 0;
+      const prevVal = pTab3 ? pTab3.prevRemain : 0;
+      const imgUrl = (pTab3 && pTab3.imgUrl) ? pTab3.imgUrl : (pProd ? pProd.imgUrl : "");
 
       pendingEdit = {
         rowIndex,
         prodName,
-        fieldType,
+        fieldType: "remain",
         oldValue: currentVal,
-        weekNum,
-        sheetName: document.getElementById("sheetSelect").value
+        weekNum: currentActiveWeek,
+        sheetName: currentActiveSheetName
       };
 
-      const fieldLabel = (fieldType === "reg") ? "本週報名數目" : "現時剩餘數目";
-      document.getElementById("editModalDesc").innerHTML =
-        `品項：<b>${prodName}</b><br>修改項目：<b>第 ${weekNum} 週 ${fieldLabel}</b><br>目前原數值：<b>${currentVal}</b>`;
+      document.getElementById("editModalImg").src = imgUrl || "https://via.placeholder.com/90?text=CupNoodle";
+      document.getElementById("editModalProdTitle").innerText = prodName;
+      document.getElementById("editModalDesc").innerHTML = 
+        `上次剩餘：<b>${prevVal} 杯</b> | 目前最新剩餘：<b>${currentVal} 杯</b>`;
       document.getElementById("editNewValInput").value = currentVal;
       document.getElementById("editModal").style.display = "flex";
     }
 
-    function closeEditModal() {
-      document.getElementById("editModal").style.display = "none";
-      pendingEdit = null;
+    function adjustEditVal(delta) {
+      const input = document.getElementById("editNewValInput");
+      let val = (parseInt(input.value, 10) || 0) + delta;
+      if (val < 0) val = 0;
+      input.value = val;
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).style.display = "none";
     }
 
     async function executeSystemEdit() {
       if (!pendingEdit) return;
       const newVal = document.getElementById("editNewValInput").value;
       if (newVal === "" || isNaN(newVal) || Number(newVal) < 0) {
-        alert("請輸入正確的正整數數值！");
+        await appAlert("請輸入正確的正整數數值！", "輸入錯誤");
         return;
       }
 
-      const fieldLabel = (pendingEdit.fieldType === "reg") ? "報名數目" : "剩餘數目";
-      if (!confirm(`【防誤操作確認】\n確定將 [${pendingEdit.prodName}] 第 ${pendingEdit.weekNum} 週 ${fieldLabel} 由 ${pendingEdit.oldValue} 修改為 ${newVal} 嗎？`)) return;
+      const ok = await appConfirm(`確定將 [${pendingEdit.prodName}] 第 ${pendingEdit.weekNum} 週 最新剩餘數目 由 ${pendingEdit.oldValue} 修改為 ${newVal} 嗎？`, "確認修改");
+      if (!ok) return;
 
       try {
         const res = await apiRequest("", {
@@ -923,29 +1046,34 @@
             name: pendingEdit.prodName
           }
         });
-        closeEditModal();
+        closeModal("editModal");
         if (res.success) {
-          alert("修改成功！已即時寫入試算表並留存於 Log 記錄表。");
-          onSheetOrWeekChange();
+          await appAlert(`修改成功！\n[${pendingEdit.prodName}] 本週最新剩餘已更新為 ${newVal} 杯。`, "修改結果");
+          loadProducts(currentActiveSheetName, currentActiveWeek);
+          if (activeTab === "tab3") loadTab3Data();
+          if (activeTab === "tab2") loadTab2Data();
         } else {
-          alert(res.msg);
+          await appAlert(res.msg, "操作被拒");
         }
       } catch (err) {
-        alert("修改失敗: " + err.message);
+        await appAlert("修改失敗: " + err.message, "伺服器錯誤");
       }
     }
 
     function setupBarcodeInput() {
       const inputEl = document.getElementById("manualBarcodeInput");
       if (inputEl) {
-        inputEl.addEventListener("keypress", e => { if (e.key === "Enter") submitManualBarcode(); });
+        inputEl.addEventListener("keypress", e => { if (e.key === "Enter") handleManualBarcodeClick(); });
       }
     }
 
-    function submitManualBarcode() {
+    function handleManualBarcodeClick() {
       const inputEl = document.getElementById("manualBarcodeInput");
       const code = inputEl ? inputEl.value.trim() : "";
-      if (!code) { alert("請輸入或掃描條碼！"); return; }
+      if (!code) { 
+        appAlert("請輸入或刷入條碼！", "提示"); 
+        return; 
+      }
       inputEl.value = "";
       onBarcodeScanned(code);
     }
@@ -954,25 +1082,52 @@
       const wrapper = document.getElementById("scannerWrapper");
       const videoEl = document.getElementById("readerVideo");
 
+      const constraints = {
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          advanced: [
+            { focusMode: "continuous" },
+            { focusDistance: { min: 0.1 } }
+          ]
+        }
+      };
+
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } }
-        }).then(stream => {
+        navigator.mediaDevices.getUserMedia(constraints).then(stream => {
           localStream = stream;
           wrapper.style.display = "block";
           videoEl.style.display = "block";
           videoEl.srcObject = stream;
           isLiveScanning = true;
 
+          try {
+            const track = stream.getVideoTracks()[0];
+            const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+            if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) {
+              track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+            }
+          } catch(e) {}
+
           if (nativeDetector) {
             detectBarcodeStream(videoEl);
           } else if (typeof Html5Qrcode !== "undefined") {
             videoEl.style.display = "none";
             if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 } }, onScanSuccess, () => {});
+            html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 260, height: 160 } }, onScanSuccess, () => {});
           }
         }).catch(() => {
-          alert("無法啟動相機，請使用手動輸入條碼核算。");
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(s2 => {
+            localStream = s2;
+            wrapper.style.display = "block";
+            videoEl.style.display = "block";
+            videoEl.srcObject = s2;
+            isLiveScanning = true;
+            if (nativeDetector) detectBarcodeStream(videoEl);
+          }).catch(() => {
+            appAlert("無法啟動相機，請直接在上方輸入框輸入條碼進行盤點。", "相機提示");
+          });
         });
       }
     }
@@ -1022,45 +1177,63 @@
 
     function onBarcodeScanned(code) {
       currentBarcode = code;
-      const p = products.find(x => x.barcode === code);
+      const cleanTarget = cleanBarcode(code);
+      const p = products.find(x => cleanBarcode(x.barcode) === cleanTarget && cleanTarget !== "");
+
+      const imgEl = document.getElementById("scanModalImg");
+      const nameEl = document.getElementById("scanModalName");
+      const codeEl = document.getElementById("scanModalBarcode");
+      const qtyInput = document.getElementById("scanModalQtyInput");
+
+      qtyInput.value = 1;
+      codeEl.innerText = `條碼號碼：${code}`;
+
       if (p) {
-        document.getElementById("scanModalImg").src = p.imgUrl || "https://via.placeholder.com/110";
-        document.getElementById("scanModalName").innerText = p.fullName;
+        imgEl.src = p.imgUrl || "https://via.placeholder.com/100?text=CupNoodle";
+        nameEl.innerText = p.fullName;
       } else {
-        document.getElementById("scanModalImg").src = "https://via.placeholder.com/110";
-        document.getElementById("scanModalName").innerText = "條碼：" + code;
+        imgEl.src = "https://via.placeholder.com/100?text=Barcode";
+        nameEl.innerText = `條碼商品 (${code})`;
       }
       document.getElementById("scanModal").style.display = "flex";
     }
 
-    function closeModal() {
-      document.getElementById("scanModal").style.display = "none";
+    function adjustScanQty(delta) {
+      const input = document.getElementById("scanModalQtyInput");
+      let val = (parseInt(input.value, 10) || 1) + delta;
+      if (val < 1) val = 1;
+      input.value = val;
     }
 
     async function confirmScanStock() {
-      const sheetSel = document.getElementById("sheetSelect");
-      const weekSel = document.getElementById("weekSelect");
-      const sheetName = sheetSel?.value || null;
-      const week = weekSel?.value ? Number(weekSel.value) : null;
+      const sheetName = currentActiveSheetName || null;
+      const week = currentActiveWeek || null;
+      const qty = parseInt(document.getElementById("scanModalQtyInput").value, 10) || 1;
+
+      const btn = document.getElementById("btnConfirmScan");
+      btn.innerText = "⏳ 處理中...";
 
       try {
         const res = await apiRequest("", {
           method: "POST",
-          body: { action: "confirmBarcode", barcode: currentBarcode, sheetName, week }
+          body: { action: "confirmBarcode", barcode: currentBarcode, qty: qty, sheetName, week }
         });
-        closeModal();
+        btn.innerText = "確認 (+數量)";
+        closeModal("scanModal");
+
         if (res.success) {
-          alert(`核算成功：${res.name} 庫存已增加至 ${res.newStock}`);
+          await appAlert(`核算成功！\n品項：${res.name}\n增加數量：+${res.addedQty} 杯\n最新庫存：${res.newStock} 杯`, "核算成功");
           loadProducts(sheetName, week);
+          if (activeTab === "tab3") loadTab3Data();
         } else {
-          alert(res.msg);
+          await appAlert(res.msg, "核算提示");
         }
       } catch (err) {
-        alert("條碼核算失敗: " + err.message);
+        btn.innerText = "確認 (+數量)";
+        await appAlert("條碼核算失敗: " + err.message, "網路/伺服器錯誤");
       }
     }
 
-    // 初始化 Google GIS 元件
     function safeInitGIS() {
       if (window.google?.accounts?.id) {
         initGoogleGIS();
