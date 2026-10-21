@@ -274,6 +274,10 @@ async function loadProducts(targetSheet, targetWeek) {
     if (targetWeek) query += `&week=${encodeURIComponent(targetWeek)}`;
 
     const res = await apiRequest(query);
+    if (res.error) {
+      throw new Error(res.error);
+    }
+
     products = res.products || [];
     if (res.userRole) {
       userRole = res.userRole;
@@ -288,11 +292,6 @@ async function loadProducts(targetSheet, targetWeek) {
 
     renderUserStatus();
     setupPermissions();
-
-    let totalStock = 0;
-    products.forEach(p => { totalStock += (Number(p.remain) || 0); });
-    const subTitleEl = document.getElementById("tab1SubTitle");
-    if (subTitleEl) subTitleEl.innerText = `現貨總數：${totalStock} 杯`;
 
     const sel = document.getElementById("sheetSelect");
     if (sel && sel.children.length === 0 && res.sheets) {
@@ -328,6 +327,12 @@ function onFilterChange() {
 }
 
 function renderGrid() {
+  // 每次渲染網格時自動重新計算「現貨總數」，確保與 Tab 3 完全同步
+  let totalStock = 0;
+  products.forEach(p => { totalStock += (Number(p.remain) || 0); });
+  const subTitleEl = document.getElementById("tab1SubTitle");
+  if (subTitleEl) subTitleEl.innerText = `現貨總數：${totalStock} 杯`;
+
   const grid = document.getElementById("gridContainer");
   if (!grid) return;
   grid.innerHTML = "";
