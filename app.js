@@ -676,6 +676,7 @@ function handleManualBarcodeClick() {
   onBarcodeScanned(code);
 }
 
+// 啟動相機 (支援自動放大 Zoom 2x 辨識細小條碼)
 function startScanner() {
   const wrapper = document.getElementById("scannerWrapper");
   const videoEl = document.getElementById("readerVideo");
@@ -684,8 +685,7 @@ function startScanner() {
     video: {
       facingMode: { ideal: "environment" },
       width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      advanced: [{ focusMode: "continuous" }, { focusDistance: { min: 0.1 } }]
+      height: { ideal: 1080 }
     }
   };
 
@@ -697,11 +697,13 @@ function startScanner() {
       videoEl.srcObject = stream;
       isLiveScanning = true;
 
+      // 自動調用相機放大 (Zoom) 能力
       try {
         const track = stream.getVideoTracks()[0];
         const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-        if (capabilities.focusMode && capabilities.focusMode.includes("continuous")) {
-          track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+        if (capabilities.zoom) {
+          const targetZoom = Math.min(2.0, capabilities.zoom.max);
+          track.applyConstraints({ advanced: [{ zoom: targetZoom }] }).catch(() => {});
         }
       } catch(e) {}
 
@@ -710,22 +712,19 @@ function startScanner() {
       } else if (typeof Html5Qrcode !== "undefined") {
         videoEl.style.display = "none";
         if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-        html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: { width: 260, height: 160 } }, onScanSuccess, () => {});
+        html5QrCode.start(
+          { facingMode: "environment" }, 
+          { fps: 20, qrbox: { width: 280, height: 180 } }, 
+          onScanSuccess, 
+          () => {}
+        );
       }
     }).catch(() => {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(s2 => {
-        localStream = s2;
-        wrapper.style.display = "block";
-        videoEl.style.display = "block";
-        videoEl.srcObject = s2;
-        isLiveScanning = true;
-        if (nativeDetector) detectBarcodeStream(videoEl);
-      }).catch(() => {
-        appAlert("無法啟動相機，請直接在上方輸入框輸入條碼進行盤點。", "相機提示");
-      });
+      appAlert("無法啟動相機，請直接在上方輸入框輸入條碼進行盤點。", "相機提示");
     });
   }
 }
+
 
 function detectBarcodeStream(videoEl) {
   if (!isLiveScanning) return;
