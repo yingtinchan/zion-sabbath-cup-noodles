@@ -275,7 +275,7 @@ async function loadProducts(targetSheet, targetWeek) {
 
     const res = await apiRequest(query);
     if (res.error) {
-      throw new Error(res.error);
+      await appAlert("後端資料讀取提示：" + res.error, "資料載入提示");
     }
 
     products = res.products || [];
